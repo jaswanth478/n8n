@@ -1,0 +1,51 @@
+{
+  "description": "Sample payloads for testing the Issue Alert Automation Workflow",
+  "usage": "Send these via curl or import into Postman to test the webhook",
+  "payloads": [
+    {
+      "name": "High Priority - API Failure",
+      "endpoint": "POST /webhook/issue-alert",
+      "body": {
+        "title": "API failure detected",
+        "priority": "high",
+        "source": "monitoring",
+        "description": "Main API endpoint returning 500 errors for 5+ minutes"
+      }
+    },
+    {
+      "name": "Critical - Security Breach",
+      "endpoint": "POST /webhook/issue-alert",
+      "body": {
+        "title": "Unauthorized access attempt detected",
+        "priority": "critical",
+        "source": "security",
+        "description": "Multiple failed login attempts from IP 192.168.1.100"
+      }
+    },
+    {
+      "name": "Medium Priority - Performance Issue",
+      "endpoint": "POST /webhook/issue-alert",
+      "body": {
+        "title": "Dashboard loading slowly",
+        "priority": "medium",
+        "source": "user_report",
+        "description": "Average page load time increased to 8 seconds"
+      }
+    },
+    {
+      "name": "Low Priority - Test Flake",
+      "endpoint": "POST /webhook/issue-alert",
+      "body": {
+        "title": "Non-critical test flake in CI",
+        "priority": "low",
+        "source": "automated_test",
+        "description": "Intermittent test failure in logging module"
+      }
+    }
+  ],
+  "curl_examples": {
+    "high_priority": "curl -X POST http://localhost:5678/webhook/issue-alert -H 'Content-Type: application/json' -d '{\"title\": \"API failure detected\", \"priority\": \"high\", \"source\": \"monitoring\"}'",
+    "low_priority": "curl -X POST http://localhost:5678/webhook/issue-alert -H 'Content-Type: application/json' -d '{\"title\": \"Minor UI glitch\", \"priority\": \"low\", \"source\": \"user_report\"}'",
+    "python_backend_direct": "curl -X POST http://localhost:8000/process-alert -H 'Content-Type: application/json' -d '{\"title\": \"API failure detected\", \"priority\": \"high\", \"source\": \"monitoring\"}'"
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "name": "Issue Alert Automation Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "issue-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "issue-alert"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "priority-check",
+              "leftValue": "={{ $json.body.priority }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "priority-check-if",
+      "name": "Check Priority Level",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "critical-check",
+              "leftValue": "={{ $json.body.priority }}",
+              "rightValue": "critical",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "critical-check-if",
+      "name": "Check If Critical",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [500, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/process-alert",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"title\": $json.body.title, \"priority\": $json.body.priority, \"source\": $json.body.source, \"description\": $json.body.description || \"\" }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "call-python-api",
+      "name": "Process Alert (Python API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [750, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all();\nconst item = input[0].json;\n\nconst logEntry = {\n  log_type: 'low_priority_alert',\n  title: item.body.title,\n  priority: item.body.priority,\n  source: item.body.source || 'unknown',\n  message: `Low/medium priority alert received: ${item.body.title}. Logged for review.`,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: logEntry }];"
+      },
+      "id": "log-low-priority",
+      "name": "Log Low Priority Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 450]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all();\nconst apiResponse = input[0].json;\n\nconst notification = {\n  channel: '#incident-alerts',\n  text: `🚨 *Alert Processed*\\n` +\n        `*Alert ID:* ${apiResponse.alert_id}\\n` +\n        `*Status:* ${apiResponse.status}\\n` +\n        `*Priority Score:* ${apiResponse.priority_score}/100\\n` +\n        `*Recommendation:* ${apiResponse.recommendation}\\n` +\n        `*Processed At:* ${apiResponse.processed_at}`,\n  username: 'Alert Bot'\n};\n\nreturn [{ json: notification }];"
+      },
+      "id": "format-notification",
+      "name": "Format Slack Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all();\nconst notification = input[0].json;\n\n// Mock Slack output — replace with real Slack webhook node in production\nconst result = {\n  notification_sent: true,\n  channel: notification.channel,\n  message_preview: notification.text.substring(0, 100) + '...',\n  sent_at: new Date().toISOString(),\n  delivery_method: 'mock_slack_webhook'\n};\n\nreturn [{ json: result }];"
+      },
+      "id": "mock-slack-send",
+      "name": "Send Notification (Mock Slack)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.all();\nconst item = input[0].json;\n\nconst response = {\n  workflow: 'Issue Alert Automation',\n  result: 'completed',\n  summary: item,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: response }];"
+      },
+      "id": "final-response",
+      "name": "Build Final Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1750, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          { "node": "Check Priority Level", "type": "main", "index": 0 },
+          { "node": "Check If Critical", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Check If Critical": {
+      "main": [
+        [{ "node": "Process Alert (Python API)", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Check Priority Level": {
+      "main": [
+        [{ "node": "Process Alert (Python API)", "type": "main", "index": 0 }],
+        [{ "node": "Log Low Priority Alert", "type": "main", "index": 0 }]
+      ]
+    },
+    "Process Alert (Python API)": {
+      "main": [
+        [{ "node": "Format Slack Notification", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Slack Notification": {
+      "main": [
+        [{ "node": "Send Notification (Mock Slack)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Notification (Mock Slack)": {
+      "main": [
+        [{ "node": "Build Final Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Log Low Priority Alert": {
+      "main": [
+        [{ "node": "Build Final Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Final Response": {
+      "main": [
+        [{ "node": "Respond to Webhook", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "automation" },
+    { "name": "incident-management" },
+    { "name": "webhook" }
+  ]
+}

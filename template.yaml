@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Issue Alert Automation - Lambda + API Gateway deployment
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.11
+    MemorySize: 256
+    Environment:
+      Variables:
+        ENVIRONMENT: production
+
+Resources:
+  AlertProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: backend.lambda_standalone.handler
+      CodeUri: .
+      Description: Processes incoming issue alerts and calculates priority scores
+      Events:
+        ProcessAlert:
+          Type: Api
+          Properties:
+            Path: /process-alert
+            Method: post
+        HealthCheck:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+
+  AlertProcessorFastAPI:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: backend.lambda_handler.handler
+      CodeUri: .
+      Description: Full FastAPI app running on Lambda via Mangum adapter
+      Events:
+        CatchAll:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  AlertProcessorArn:
+    Description: Lambda function ARN
+    Value: !GetAtt AlertProcessorFunction.Arn
